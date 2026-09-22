@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from agentlab.adapters.base import ModelAdapter
@@ -12,15 +13,23 @@ from agentlab.models import (
 )
 
 
-def _utc_timestamp() -> str:
-    return datetime.now(UTC).isoformat()
+def default_clock(seq: int) -> str:
+    # Deterministic fallback; callers can inject wall-clock time when needed.
+    return datetime.fromtimestamp(seq, UTC).isoformat()
 
 
 class AgentRuntime:
-    def __init__(self, adapter: ModelAdapter, event_sink: InMemoryEventSink, seed: int) -> None:
+    def __init__(
+        self,
+        adapter: ModelAdapter,
+        event_sink: InMemoryEventSink,
+        seed: int,
+        clock: Callable[[int], str] | None = None,
+    ) -> None:
         self._adapter = adapter
         self._event_sink = event_sink
         self._seed = seed
+        self._clock = clock or default_clock
 
     def run(self, prompt: str, run_id: str) -> RunRecord:
         seq = 0
@@ -34,7 +43,7 @@ class AgentRuntime:
                 run_id=run_id,
                 seq=seq,
                 type=event_type,
-                timestamp=_utc_timestamp(),
+                timestamp=self._clock(seq),
                 payload=payload,
                 prev_hash=prev_hash,
             )

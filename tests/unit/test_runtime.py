@@ -23,3 +23,19 @@ def test_runtime_completes_final_answer() -> None:
         "ModelResponded",
         "RunCompleted",
     ]
+
+
+def test_runtime_event_hashes_are_deterministic_for_identical_runs() -> None:
+    def run_once() -> list[str]:
+        adapter = FakeAdapter(
+            script=[ModelResponse(action=FinalAnswer(kind="final", content="你好"), token_usage=7)]
+        )
+        sink = InMemoryEventSink()
+        AgentRuntime(adapter=adapter, event_sink=sink, seed=42).run("打个招呼", run_id="run-1")
+        return [event.hash for event in sink.events]
+
+    first = run_once()
+    second = run_once()
+
+    assert first == second
+    assert len(first) == 4

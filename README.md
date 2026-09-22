@@ -4,9 +4,19 @@ Reliability tests, deterministic replay, and fault injection for tool-using agen
 
 ## Install
 
+### Windows (PowerShell)
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+```
+
+### POSIX (bash/zsh)
+
 ```bash
 python -m venv .venv
-.venv\Scripts\activate  # Windows
+source .venv/bin/activate
 python -m pip install -e ".[dev]"
 ```
 
