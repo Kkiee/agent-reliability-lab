@@ -48,7 +48,7 @@
 - Consumes: 无。
 - Produces: `ActionType`、`RunStatus`、`ToolCall`、`FinalAnswer`、`ModelResponse`、`Scenario`、`RunRecord`、`Event`、`EventType`、`InMemoryEventSink`、`ModelAdapter`、`FakeAdapter`、`AgentRuntime.run()`。
 
-- [ ] **Step 1: 写模型与 Runtime 的失败测试**
+- [x] **Step 1: 写模型与 Runtime 的失败测试**
 
 创建 `tests/unit/test_models.py`：
 
@@ -133,7 +133,7 @@ def test_event_hash_is_stable_for_same_payload() -> None:
     assert first == second
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run:
 
@@ -143,7 +143,7 @@ python -m pytest tests/unit/test_models.py tests/unit/test_events.py tests/unit/
 
 Expected: FAIL，错误包含 `ModuleNotFoundError: No module named 'agentlab'`。
 
-- [ ] **Step 3: 建立包配置**
+- [x] **Step 3: 建立包配置**
 
 创建 `pyproject.toml`：
 
@@ -214,7 +214,7 @@ build/
 *.egg-info/
 ```
 
-- [ ] **Step 4: 实现领域模型和事件记录**
+- [x] **Step 4: 实现领域模型和事件记录**
 
 创建 `src/agentlab/models.py`，至少包含以下实现：
 
@@ -327,7 +327,7 @@ class InMemoryEventSink:
         return event
 ```
 
-- [ ] **Step 5: 实现确定性 FakeAdapter 和 Runtime**
+- [x] **Step 5: 实现确定性 FakeAdapter 和 Runtime**
 
 创建 `src/agentlab/adapters/base.py`：
 
@@ -366,7 +366,7 @@ class FakeAdapter:
 
 创建 `src/agentlab/runtime.py`，实现同步循环。`RunStarted`、`ModelRequested`、`ModelResponded`、`RunCompleted` 都必须写入 sink。Runtime 不直接修改事件哈希；由 sink 统一计算。
 
-- [ ] **Step 6: 运行测试并修正**
+- [x] **Step 6: 运行测试并修正**
 
 Run:
 
@@ -378,7 +378,7 @@ python -m mypy src
 
 Expected: 全部 PASS。
 
-- [ ] **Step 7: 提交 Day 1**
+- [x] **Step 7: 提交 Day 1**
 
 ```bash
 git add pyproject.toml .gitignore src tests
