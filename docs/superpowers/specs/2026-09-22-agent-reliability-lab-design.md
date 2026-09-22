@@ -341,7 +341,8 @@ Replay Engine 读取 `events.jsonl`，重新应用事件并构造最终状态。
 
 - `task_success`
 - `recovery_rate`
-- `policy_violation_count`
+- `policy_violation_count`：实际执行的违规工具调用次数，必须保持为 0。
+- `policy_denial_count`：策略返回 `DENY` 的次数。
 - `loop_termination_count`
 - `average_steps`
 - `average_tool_calls`
@@ -357,6 +358,7 @@ Replay Engine 读取 `events.jsonl`，重新应用事件并构造最终状态。
   "expected_status": "completed",
   "expected_recovered": true,
   "max_policy_violations": 0,
+  "min_policy_denials": 0,
   "required_events": ["FaultInjected", "ToolFailed", "ToolSucceeded"]
 }
 ```
