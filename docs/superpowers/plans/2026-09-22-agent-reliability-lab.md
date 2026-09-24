@@ -403,7 +403,7 @@ git commit -m "feat: add deterministic agent runtime core"
 - Consumes: `ToolCall`、`RunRecord`、`Event`、`InMemoryEventSink`。
 - Produces: `PolicyDecision`、`PolicyEngine`、`ToolSpec`、`ToolRegistry`、`ToolResult`、`build_default_registry()`。
 
-- [ ] **Step 1: 写策略和工具失败测试**
+- [x] **Step 1: 写策略和工具失败测试**
 
 `tests/unit/test_policy.py` 必须覆盖：
 
@@ -430,7 +430,7 @@ def test_third_identical_call_terminates_run() -> None:
 
 `tests/unit/test_tools.py` 必须验证 `calculate` 成功、除零失败、未知工具失败，以及 `send_message` 只写入内存记录器。
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run:
 
@@ -440,7 +440,7 @@ python -m pytest tests/unit/test_policy.py tests/unit/test_tools.py -v
 
 Expected: FAIL，错误包含 `No module named 'agentlab.policy'` 或 `agentlab.tools`。
 
-- [ ] **Step 3: 实现策略配置和决策**
+- [x] **Step 3: 实现策略配置和决策**
 
 `PolicyConfig` 必须放在 `models.py`，避免 `Scenario` 模型与 `policy.py` 循环导入：
 
@@ -494,7 +494,7 @@ class PolicyEngine:
 5. 相同工具与规范化参数重复次数
 6. 副作用或审批要求
 
-- [ ] **Step 4: 实现工具协议和内置模拟工具**
+- [x] **Step 4: 实现工具协议和内置模拟工具**
 
 `src/agentlab/tools/base.py`：
 
@@ -524,7 +524,7 @@ class ToolRegistry:
 - `calculate(expression)`：只允许数字、括号和 `+-*/`，拒绝任意代码执行。
 - `send_message(recipient, text)`：仅写入 `MessageRecorder`。
 
-- [ ] **Step 5: 扩展 Runtime 工具循环**
+- [x] **Step 5: 扩展 Runtime 工具循环**
 
 Runtime 收到 `ToolCall` 后：
 
@@ -536,7 +536,7 @@ Runtime 收到 `ToolCall` 后：
 
 新增事件类型：`ToolRequested`、`PolicyEvaluated`、`ToolStarted`、`ToolSucceeded`、`ToolFailed`。
 
-- [ ] **Step 6: 运行测试并修正**
+- [x] **Step 6: 运行测试并修正**
 
 Run:
 
@@ -548,7 +548,7 @@ python -m mypy src
 
 Expected: 全部 PASS。
 
-- [ ] **Step 7: 提交 Day 2**
+- [x] **Step 7: 提交 Day 2**
 
 ```bash
 git add src tests
