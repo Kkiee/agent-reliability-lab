@@ -19,6 +19,11 @@ class EventType(StrEnum):
     RUN_STARTED = "RunStarted"
     MODEL_REQUESTED = "ModelRequested"
     MODEL_RESPONDED = "ModelResponded"
+    TOOL_REQUESTED = "ToolRequested"
+    POLICY_EVALUATED = "PolicyEvaluated"
+    TOOL_STARTED = "ToolStarted"
+    TOOL_SUCCEEDED = "ToolSucceeded"
+    TOOL_FAILED = "ToolFailed"
     RUN_COMPLETED = "RunCompleted"
     RUN_FAILED = "RunFailed"
     RUN_TERMINATED = "RunTerminated"
@@ -52,6 +57,41 @@ Action = Annotated[ToolCall | FinalAnswer, Field(discriminator="kind")]
 class ModelResponse(StrictModel):
     action: Action
     token_usage: int = Field(ge=0)
+
+
+class PolicyConfig(StrictModel):
+    allowed_tools: set[str] = Field(
+        default_factory=lambda: {"search_docs", "fetch_record", "calculate"}
+    )
+    blocked_tools: set[str] = Field(default_factory=set)
+    max_steps: int = Field(default=12, ge=1)
+    max_tool_calls: int = Field(default=8, ge=1)
+    max_tokens: int = Field(default=6000, ge=1)
+    repeated_call_limit: int = Field(default=3, ge=2)
+    allow_side_effects: bool = False
+    approval_required_tools: set[str] = Field(default_factory=set)
+
+
+class ToolResult(StrictModel):
+    call_id: str
+    tool_name: str
+    success: bool
+    output: object | None = None
+    error: str | None = None
+    duration_ms: float = 0.0
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class RuntimeState(StrictModel):
+    run_id: str
+    status: RunStatus = RunStatus.CREATED
+    step: int = 0
+    tool_calls: int = 0
+    token_usage: int = 0
+    history: list[ToolCall] = Field(default_factory=list)
+    tool_results: list[ToolResult] = Field(default_factory=list)
+    final_answer: str | None = None
+    termination_reason: str | None = None
 
 
 class RunRecord(StrictModel):

@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
+
+from pydantic import ValidationError
 
 from agentlab.adapters.base import ModelAdapter
 from agentlab.events import Event, InMemoryEventSink
 from agentlab.models import (
     EventType,
     FinalAnswer,
+    PolicyConfig,
     RunRecord,
     RunStatus,
+    RuntimeState,
+    ToolCall,
+    ToolResult,
 )
+from agentlab.policy import PolicyDecisionType, PolicyEngine
+from agentlab.tools.base import ToolRegistry
+from agentlab.tools.builtin import build_default_registry
 
 
 def default_clock(seq: int) -> str:
@@ -25,11 +35,20 @@ class AgentRuntime:
         event_sink: InMemoryEventSink,
         seed: int,
         clock: Callable[[int], str] | None = None,
+        tools: ToolRegistry | None = None,
+        policy: PolicyEngine | PolicyConfig | None = None,
     ) -> None:
         self._adapter = adapter
         self._event_sink = event_sink
         self._seed = seed
         self._clock = clock or default_clock
+        self._tools = tools if tools is not None else build_default_registry()
+        if policy is None:
+            self._policy = PolicyEngine(PolicyConfig())
+        elif isinstance(policy, PolicyConfig):
+            self._policy = PolicyEngine(policy)
+        else:
+            self._policy = policy
 
     def run(self, prompt: str, run_id: str) -> RunRecord:
         seq = 0
@@ -51,15 +70,16 @@ class AgentRuntime:
 
         emit(EventType.RUN_STARTED, {"seed": self._seed, "prompt": prompt})
 
-        steps = 0
-        token_usage = 0
+        state = RuntimeState(run_id=run_id, status=RunStatus.RUNNING)
+        model_prompt = prompt
         final_answer: str | None = None
 
         while True:
-            steps += 1
-            emit(EventType.MODEL_REQUESTED, {"prompt": prompt, "step": steps})
-            response = self._adapter.complete(prompt, steps)
-            token_usage += response.token_usage
+            state.status = RunStatus.WAITING_FOR_MODEL
+            state.step += 1
+            emit(EventType.MODEL_REQUESTED, {"prompt": model_prompt, "step": state.step})
+            response = self._adapter.complete(model_prompt, state.step)
+            state.token_usage += response.token_usage
             emit(
                 EventType.MODEL_RESPONDED,
                 {
@@ -67,20 +87,164 @@ class AgentRuntime:
                     "token_usage": response.token_usage,
                 },
             )
+
             if isinstance(response.action, FinalAnswer):
                 final_answer = response.action.content
+                state.status = RunStatus.COMPLETED
+                state.final_answer = final_answer
                 break
-            # Tool execution arrives later; fail loudly instead of returning a partial run.
-            raise NotImplementedError("tool execution is not part of Task 1")
+
+            state.status = RunStatus.WAITING_FOR_TOOL
+            tool_result = self._handle_tool_call(emit, response.action, state)
+            if tool_result is None:
+                return RunRecord(
+                    run_id=run_id,
+                    status=RunStatus.TERMINATED,
+                    steps=state.step,
+                    token_usage=state.token_usage,
+                )
+
+            state.tool_results.append(tool_result)
+            model_prompt = _prompt_with_tool_result(model_prompt, tool_result)
 
         emit(
             EventType.RUN_COMPLETED,
-            {"final_answer": final_answer, "steps": steps, "token_usage": token_usage},
+            {
+                "final_answer": final_answer,
+                "steps": state.step,
+                "token_usage": state.token_usage,
+            },
         )
         return RunRecord(
             run_id=run_id,
             status=RunStatus.COMPLETED,
             final_answer=final_answer,
-            steps=steps,
-            token_usage=token_usage,
+            steps=state.step,
+            token_usage=state.token_usage,
         )
+
+    def _handle_tool_call(
+        self,
+        emit: Callable[[EventType, dict[str, object]], None],
+        call: ToolCall,
+        state: RuntimeState,
+    ) -> ToolResult | None:
+        emit(
+            EventType.TOOL_REQUESTED,
+            {
+                "call_id": call.call_id,
+                "tool_name": call.tool_name,
+                "arguments": call.arguments,
+            },
+        )
+
+        try:
+            spec = self._tools.get(call.tool_name)
+        except KeyError:
+            state.history.append(call)
+            state.tool_calls += 1
+            result = ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                success=False,
+                error="unknown_tool",
+            )
+            self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
+            return result
+
+        decision = self._policy.evaluate(call, spec, state)
+        emit(
+            EventType.POLICY_EVALUATED,
+            {
+                "call_id": call.call_id,
+                "tool_name": call.tool_name,
+                "decision": decision.kind.value,
+                "reason": decision.reason,
+            },
+        )
+        state.history.append(call)
+        state.tool_calls += 1
+
+        if decision.kind == PolicyDecisionType.TERMINATE:
+            state.status = RunStatus.TERMINATED
+            state.termination_reason = decision.reason
+            emit(
+                EventType.RUN_TERMINATED,
+                {
+                    "reason": decision.reason,
+                    "steps": state.step,
+                    "tool_calls": state.tool_calls,
+                    "token_usage": state.token_usage,
+                },
+            )
+            return None
+
+        if decision.kind == PolicyDecisionType.DENY:
+            return ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                success=False,
+                error=decision.reason,
+                metadata={"policy_decision": decision.kind.value},
+            )
+
+        emit(
+            EventType.TOOL_STARTED,
+            {"call_id": call.call_id, "tool_name": call.tool_name},
+        )
+        try:
+            arguments = spec.input_model.model_validate(call.arguments)
+        except ValidationError as exc:
+            result = ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                success=False,
+                error="invalid_tool_input",
+                metadata={"validation_error": str(exc)},
+            )
+            self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
+            return result
+
+        try:
+            result = spec.handler(arguments)
+        except Exception as exc:
+            result = ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                success=False,
+                error=str(exc) or type(exc).__name__,
+                metadata={"exception_type": type(exc).__name__},
+            )
+        else:
+            result = result.model_copy(
+                update={"call_id": call.call_id, "tool_name": call.tool_name}
+            )
+
+        event_type = EventType.TOOL_SUCCEEDED if result.success else EventType.TOOL_FAILED
+        self._emit_tool_result(emit, event_type, result)
+        return result
+
+    @staticmethod
+    def _emit_tool_result(
+        emit: Callable[[EventType, dict[str, object]], None],
+        event_type: EventType,
+        result: ToolResult,
+    ) -> None:
+        emit(
+            event_type,
+            {
+                "call_id": result.call_id,
+                "tool_name": result.tool_name,
+                "result": result.model_dump(mode="json"),
+            },
+        )
+
+
+def _prompt_with_tool_result(prompt: str, result: ToolResult) -> str:
+    rendered = json.dumps(
+        result.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return f"{prompt}\n\nTool result:\n{rendered}"
