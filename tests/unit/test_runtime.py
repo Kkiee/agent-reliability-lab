@@ -252,3 +252,50 @@ def test_runtime_terminates_repeated_tool_call() -> None:
     assert types.count("ToolSucceeded") == 2
     assert types.count("ToolStarted") == 2
     assert types[-1] == "RunTerminated"
+
+def test_runtime_budgets_unknown_tool_calls_before_registry_denial() -> None:
+    adapter = FakeAdapter(
+        script=[
+            ModelResponse(
+                action=ToolCall(
+                    kind="tool",
+                    call_id=f"unknown-{attempt}",
+                    tool_name="hallucinated_tool",
+                    arguments={"attempt": attempt},
+                ),
+                token_usage=1,
+            )
+            for attempt in range(3)
+        ]
+        + [ModelResponse(action=FinalAnswer(kind="final", content="不会到达"), token_usage=1)]
+    )
+    sink = InMemoryEventSink()
+    runtime = AgentRuntime(
+        adapter=adapter,
+        event_sink=sink,
+        seed=42,
+        tools=ToolRegistry(),
+        policy=PolicyEngine(PolicyConfig(max_tool_calls=2)),
+    )
+
+    result = runtime.run("调用不存在的工具", run_id="run-unknown-budget")
+
+    assert result.status == RunStatus.TERMINATED
+    assert result.final_answer is None
+    assert sink.events[-1].type.value == "RunTerminated"
+    assert sink.events[-1].payload["reason"] == "max_tool_calls_exceeded"
+
+    event_types = [event.type.value for event in sink.events]
+    assert event_types.count("ToolRequested") == 3
+    assert event_types.count("PolicyEvaluated") == 3
+    assert event_types.count("ToolFailed") == 2
+    for index, event_type in enumerate(event_types):
+        if event_type == "ToolRequested":
+            assert event_types[index + 1] == "PolicyEvaluated"
+
+    failed_results = [
+        event.payload["result"]
+        for event in sink.events
+        if event.type.value == "ToolFailed"
+    ]
+    assert all(result["error"] == "unknown_tool" for result in failed_results)

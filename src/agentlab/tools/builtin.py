@@ -9,7 +9,7 @@ from pydantic import Field, field_validator
 from agentlab.models import StrictModel, ToolResult
 from agentlab.tools.base import ToolRegistry, ToolSpec
 
-_ARITHMETIC_PATTERN = re.compile(r"[\d\s+\-*/().]+")
+_ARITHMETIC_PATTERN = re.compile(r"[0-9\s+\-*/().]+")
 
 
 class SearchDocsInput(StrictModel):

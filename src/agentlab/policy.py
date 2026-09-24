@@ -22,7 +22,12 @@ class PolicyEngine:
     def __init__(self, config: PolicyConfig) -> None:
         self.config = config
 
-    def evaluate(self, call: ToolCall, spec: ToolSpec, state: RuntimeState) -> PolicyDecision:
+    def evaluate(
+        self,
+        call: ToolCall,
+        spec: ToolSpec | None,
+        state: RuntimeState,
+    ) -> PolicyDecision:
         if state.step >= self.config.max_steps:
             return PolicyDecision(
                 kind=PolicyDecisionType.TERMINATE,
@@ -38,6 +43,8 @@ class PolicyEngine:
                 kind=PolicyDecisionType.TERMINATE,
                 reason="token_budget_exceeded",
             )
+        if spec is None:
+            return PolicyDecision(kind=PolicyDecisionType.DENY, reason="unknown_tool")
         if call.tool_name in self.config.blocked_tools:
             return PolicyDecision(kind=PolicyDecisionType.DENY, reason="tool_blocked")
         if call.tool_name not in self.config.allowed_tools:

@@ -141,16 +141,7 @@ class AgentRuntime:
         try:
             spec = self._tools.get(call.tool_name)
         except KeyError:
-            state.history.append(call)
-            state.tool_calls += 1
-            result = ToolResult(
-                call_id=call.call_id,
-                tool_name=call.tool_name,
-                success=False,
-                error="unknown_tool",
-            )
-            self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
-            return result
+            spec = None
 
         decision = self._policy.evaluate(call, spec, state)
         emit(
@@ -180,13 +171,26 @@ class AgentRuntime:
             return None
 
         if decision.kind == PolicyDecisionType.DENY:
-            return ToolResult(
+            result = ToolResult(
                 call_id=call.call_id,
                 tool_name=call.tool_name,
                 success=False,
                 error=decision.reason,
                 metadata={"policy_decision": decision.kind.value},
             )
+            if spec is None:
+                self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
+            return result
+
+        if spec is None:
+            result = ToolResult(
+                call_id=call.call_id,
+                tool_name=call.tool_name,
+                success=False,
+                error="unknown_tool",
+            )
+            self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
+            return result
 
         emit(
             EventType.TOOL_STARTED,

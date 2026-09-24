@@ -114,6 +114,28 @@ def test_policy_checks_token_budget_before_tool_rules() -> None:
     assert decision.reason == "token_budget_exceeded"
 
 
+def test_unknown_tool_is_denied_when_budgets_are_available() -> None:
+    policy = PolicyEngine(PolicyConfig())
+    call = make_call(tool_name="hallucinated_tool")
+
+    decision = policy.evaluate(call, None, RuntimeState(run_id="run-1"))
+
+    assert decision.kind == PolicyDecisionType.DENY
+    assert decision.reason == "unknown_tool"
+
+
+def test_blocked_tool_is_denied_before_allowlist() -> None:
+    policy = PolicyEngine(
+        PolicyConfig(allowed_tools={"calculate"}, blocked_tools={"calculate"})
+    )
+    call = make_call()
+
+    decision = policy.evaluate(call, make_spec(), RuntimeState(run_id="run-1"))
+
+    assert decision.kind == PolicyDecisionType.DENY
+    assert decision.reason == "tool_blocked"
+
+
 def test_policy_checks_tool_allowlist_before_repetition() -> None:
     policy = PolicyEngine(PolicyConfig(allowed_tools=set(), repeated_call_limit=2))
     call = make_call()

@@ -41,6 +41,14 @@ def test_calculate_rejects_non_arithmetic_input() -> None:
         spec.input_model.model_validate({"expression": "__import__('os').system('whoami')"})
 
 
+def test_calculate_rejects_non_ascii_digits() -> None:
+    registry = build_default_registry()
+    spec = registry.get("calculate")
+
+    with pytest.raises(ValidationError):
+        spec.input_model.model_validate({"expression": "١ + ١"})
+
+
 def test_unknown_tool_fails_registry_lookup() -> None:
     registry = build_default_registry()
 
