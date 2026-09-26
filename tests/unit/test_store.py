@@ -147,3 +147,80 @@ def test_store_rejects_event_from_another_run(tmp_path: Path) -> None:
 
     with pytest.raises(EventIntegrityError):
         store.read_events("run-1")
+
+
+def _assert_invalid_run_id_is_rejected_before_filesystem_access(
+    store: FileEventStore,
+    run_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event = make_event(1, None).model_copy(update={"run_id": run_id})
+    state = RuntimeState(run_id=run_id)
+    operations = (
+        lambda: store.start_run(run_id, {"scenario": "happy_path"}),
+        lambda: store.append(event),
+        lambda: store.read_events(run_id),
+        lambda: store.write_state(state),
+        lambda: store.load_state(run_id),
+    )
+
+    def unexpected_filesystem_access(*args: object, **kwargs: object) -> object:
+        raise AssertionError("invalid run IDs must be rejected before filesystem access")
+
+    for operation in operations:
+        with monkeypatch.context() as patcher:
+            patcher.setattr(Path, "exists", unexpected_filesystem_access)
+            patcher.setattr(Path, "is_dir", unexpected_filesystem_access)
+            patcher.setattr(Path, "mkdir", unexpected_filesystem_access)
+            patcher.setattr(Path, "read_text", unexpected_filesystem_access)
+            patcher.setattr(Path, "write_text", unexpected_filesystem_access)
+            patcher.setattr(Path, "open", unexpected_filesystem_access)
+            with pytest.raises(ValueError, match="run_id must be a single path segment"):
+                operation()
+
+
+@pytest.mark.parametrize("run_id", ["..", ".", "nested/run", "nested\\run"])
+def test_store_rejects_dot_and_separator_run_ids_before_filesystem_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: str,
+) -> None:
+    store = FileEventStore(tmp_path)
+
+    _assert_invalid_run_id_is_rejected_before_filesystem_access(store, run_id, monkeypatch)
+
+
+def test_store_rejects_absolute_run_id_before_filesystem_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = FileEventStore(tmp_path)
+
+    _assert_invalid_run_id_is_rejected_before_filesystem_access(
+        store,
+        str(tmp_path / "outside"),
+        monkeypatch,
+    )
+
+
+def test_start_run_maps_mkdir_race_to_run_already_exists(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = FileEventStore(tmp_path)
+    original_mkdir = Path.mkdir
+
+    def conflicting_mkdir(
+        path: Path,
+        mode: int = 0o777,
+        parents: bool = False,
+        exist_ok: bool = False,
+    ) -> None:
+        if path == tmp_path / "run-race":
+            raise FileExistsError(path)
+        original_mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
+
+    monkeypatch.setattr(Path, "mkdir", conflicting_mkdir)
+
+    with pytest.raises(RunAlreadyExistsError):
+        store.start_run("run-race", {"scenario": "happy_path"})

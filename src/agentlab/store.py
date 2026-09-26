@@ -40,10 +40,10 @@ class FileEventStore:
 
     def start_run(self, run_id: str, metadata: dict[str, object]) -> None:
         run_dir = self._run_dir(run_id)
-        if run_dir.exists():
-            raise RunAlreadyExistsError(run_id)
-
-        run_dir.mkdir()
+        try:
+            run_dir.mkdir(exist_ok=False)
+        except FileExistsError as exc:
+            raise RunAlreadyExistsError(run_id) from exc
         manifest = _RunManifest(run_id=run_id, metadata=metadata)
         _write_json(run_dir / "manifest.json", manifest.model_dump(mode="json"))
         (run_dir / "events.jsonl").write_text("", encoding="utf-8")
@@ -133,8 +133,15 @@ class FileEventStore:
         return snapshot
 
     def _run_dir(self, run_id: str) -> Path:
-        if not run_id or Path(run_id).name != run_id:
-            raise ValueError("run_id must be a single path segment")
+        if (
+            not run_id
+            or run_id in {".", ".."}
+            or "/" in run_id
+            or "\\" in run_id
+            or Path(run_id).is_absolute()
+            or Path(run_id).name != run_id
+        ):
+            raise ValueError("run_id must be a single path segment and cannot be '.' or '..'")
         return self.root / run_id
 
     def _events_path(self, run_id: str) -> Path:
