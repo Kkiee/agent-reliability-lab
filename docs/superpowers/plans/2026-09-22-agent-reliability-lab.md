@@ -569,7 +569,7 @@ git commit -m "feat: add tools policy guard and safe tool loop"
 - Consumes: `Event`、`EventType`、`InMemoryEventSink`、`RunRecord`。
 - Produces: `RuntimeState`、`FileEventStore`、`compute_state_hash()`、`ReplayEngine.replay()`。
 
-- [ ] **Step 1: 写事件存储和篡改检测测试**
+- [x] **Step 1: 写事件存储和篡改检测测试**
 
 创建 `tests/unit/test_store.py`：
 
@@ -617,7 +617,7 @@ def test_tampered_event_log_is_rejected(tmp_path: Path) -> None:
         store.read_events("run-1")
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run:
 
@@ -627,7 +627,7 @@ python -m pytest tests/unit/test_store.py -v
 
 Expected: FAIL，错误包含 `No module named 'agentlab.store'`。
 
-- [ ] **Step 3: 实现 RuntimeState 和状态哈希**
+- [x] **Step 3: 实现 RuntimeState 和状态哈希**
 
 在 `models.py` 中加入：
 
@@ -653,7 +653,7 @@ def compute_state_hash(state: RuntimeState) -> str:
     return hashlib.sha256(encoded).hexdigest()
 ```
 
-- [ ] **Step 4: 实现 FileEventStore**
+- [x] **Step 4: 实现 FileEventStore**
 
 `src/agentlab/store.py` 必须：
 
@@ -665,7 +665,7 @@ def compute_state_hash(state: RuntimeState) -> str:
 - 支持 `write_state()` 和 `load_state()`。
 - 不覆盖已有 `events.jsonl`，Run ID 冲突时抛出 `RunAlreadyExistsError`。
 
-- [ ] **Step 5: 写 Replay 失败测试**
+- [x] **Step 5: 写 Replay 失败测试**
 
 创建 `tests/unit/test_replay.py`：
 
@@ -682,7 +682,7 @@ def test_replay_does_not_call_adapter_or_tools(tmp_path: Path) -> None:
 
 同时增加一个测试：手工篡改 `events.jsonl` 后，Replay 必须先抛出 `EventIntegrityError`，不能继续构造状态。
 
-- [ ] **Step 6: 实现 ReplayEngine**
+- [x] **Step 6: 实现 ReplayEngine**
 
 `src/agentlab/replay.py` 只应用事件，不调用 Adapter 和 ToolRegistry。
 
@@ -698,7 +698,7 @@ def test_replay_does_not_call_adapter_or_tools(tmp_path: Path) -> None:
 
 Replay 完成后，调用 `compute_state_hash()`，并断言与 `state.json` 中的哈希一致。
 
-- [ ] **Step 7: 运行测试并修正**
+- [x] **Step 7: 运行测试并修正**
 
 Run:
 
@@ -710,7 +710,7 @@ python -m mypy src
 
 Expected: 全部 PASS。
 
-- [ ] **Step 8: 提交 Day 3**
+- [x] **Step 8: 提交 Day 3**
 
 ```bash
 git add src tests

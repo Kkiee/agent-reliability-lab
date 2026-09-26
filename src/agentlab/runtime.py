@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pydantic import ValidationError
 
 from agentlab.adapters.base import ModelAdapter
-from agentlab.events import Event, InMemoryEventSink
+from agentlab.events import Event, InMemoryEventSink, compute_state_hash
 from agentlab.models import (
     EventType,
     FinalAnswer,
@@ -19,6 +19,7 @@ from agentlab.models import (
     ToolResult,
 )
 from agentlab.policy import PolicyDecisionType, PolicyEngine
+from agentlab.store import FileEventStore
 from agentlab.tools.base import ToolRegistry
 from agentlab.tools.builtin import build_default_registry
 
@@ -32,7 +33,7 @@ class AgentRuntime:
     def __init__(
         self,
         adapter: ModelAdapter,
-        event_sink: InMemoryEventSink,
+        event_sink: InMemoryEventSink | FileEventStore,
         seed: int,
         clock: Callable[[int], str] | None = None,
         tools: ToolRegistry | None = None,
@@ -53,6 +54,8 @@ class AgentRuntime:
     def run(self, prompt: str, run_id: str) -> RunRecord:
         seq = 0
         prev_hash: str | None = None
+        if isinstance(self._event_sink, FileEventStore):
+            self._event_sink.start_run(run_id, {"seed": self._seed, "prompt": prompt})
 
         def emit(event_type: EventType, payload: dict[str, object]) -> None:
             nonlocal seq, prev_hash
@@ -97,12 +100,7 @@ class AgentRuntime:
             state.status = RunStatus.WAITING_FOR_TOOL
             tool_result = self._handle_tool_call(emit, response.action, state)
             if tool_result is None:
-                return RunRecord(
-                    run_id=run_id,
-                    status=RunStatus.TERMINATED,
-                    steps=state.step,
-                    token_usage=state.token_usage,
-                )
+                return self._record_run(state)
 
             state.tool_results.append(tool_result)
             model_prompt = _prompt_with_tool_result(model_prompt, tool_result)
@@ -115,12 +113,19 @@ class AgentRuntime:
                 "token_usage": state.token_usage,
             },
         )
+        return self._record_run(state)
+
+    def _record_run(self, state: RuntimeState) -> RunRecord:
+        state_hash = compute_state_hash(state)
+        if isinstance(self._event_sink, FileEventStore):
+            self._event_sink.write_state(state)
         return RunRecord(
-            run_id=run_id,
-            status=RunStatus.COMPLETED,
-            final_answer=final_answer,
+            run_id=state.run_id,
+            status=state.status,
+            final_answer=state.final_answer,
             steps=state.step,
             token_usage=state.token_usage,
+            state_hash=state_hash,
         )
 
     def _handle_tool_call(
