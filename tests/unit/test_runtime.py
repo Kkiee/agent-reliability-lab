@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from agentlab.adapters.fake import FakeAdapter
 from agentlab.chaos import ChaosInjector
 from agentlab.events import InMemoryEventSink
@@ -623,3 +625,204 @@ def test_replay_reconstructs_faulted_run_without_rerunning_injection(tmp_path: P
     assert sum(event.type.value == "FaultInjected" for event in events) == 1
     assert replayed.status == record.status
     assert replayed.state_hash == record.state_hash
+
+
+def test_runtime_rejects_mismatched_chaos_seed() -> None:
+    with pytest.raises(ValueError, match="chaos seed"):
+        AgentRuntime(
+            adapter=FakeAdapter(
+                [ModelResponse(action=FinalAnswer(kind="final", content="done"), token_usage=1)]
+            ),
+            event_sink=InMemoryEventSink(),
+            seed=7,
+            chaos=ChaosInjector([], seed=8),
+        )
+
+
+def test_timeout_metadata_keeps_canonical_fault_fields() -> None:
+    adapter = FakeAdapter(
+        script=[
+            ModelResponse(
+                action=ToolCall(
+                    kind="tool",
+                    call_id="1",
+                    tool_name="search_docs",
+                    arguments={"query": "x"},
+                ),
+                token_usage=4,
+            ),
+            ModelResponse(action=FinalAnswer(kind="final", content="失败"), token_usage=2),
+        ]
+    )
+    sink = InMemoryEventSink()
+    runtime = AgentRuntime(
+        adapter=adapter,
+        event_sink=sink,
+        seed=7,
+        tools=build_default_registry(),
+        chaos=ChaosInjector(
+            [
+                FaultSpec(
+                    type=FaultType.TIMEOUT,
+                    tool_name="search_docs",
+                    call_index=1,
+                    payload={
+                        "fault_injected": "user-value",
+                        "message": "user-message",
+                        "extra": "kept",
+                    },
+                )
+            ],
+            seed=7,
+        ),
+    )
+
+    runtime.run("查询 x", run_id="run-timeout-metadata")
+
+    tool_result = next(
+        event.payload["result"] for event in sink.events if event.type.value == "ToolFailed"
+    )
+    assert tool_result["metadata"] == {
+        "fault_injected": "timeout",
+        "message": "simulated timeout",
+        "extra": "kept",
+    }
+
+
+@pytest.mark.parametrize(
+    "fault_type",
+    [
+        FaultType.MALFORMED_JSON,
+        FaultType.EMPTY_RESULT,
+        FaultType.DUPLICATE_RESULT,
+        FaultType.PROMPT_INJECTION,
+        FaultType.CONTRADICTORY_RESULT,
+    ],
+)
+def test_post_execution_fault_emits_after_handler(fault_type: FaultType) -> None:
+    class TrackingInput(StrictModel):
+        value: int
+
+    sink = InMemoryEventSink()
+    handler_saw_fault = False
+
+    def handler(arguments: object) -> ToolResult:
+        nonlocal handler_saw_fault
+        handler_saw_fault = any(event.type.value == "FaultInjected" for event in sink.events)
+        return ToolResult(call_id="", tool_name="tracking", success=True, output={"value": 1})
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="tracking",
+            description="track fault ordering",
+            input_model=TrackingInput,
+            handler=handler,
+        )
+    )
+    adapter = FakeAdapter(
+        script=[
+            ModelResponse(
+                action=ToolCall(
+                    kind="tool",
+                    call_id="1",
+                    tool_name="tracking",
+                    arguments={"value": 1},
+                ),
+                token_usage=4,
+            ),
+            ModelResponse(action=FinalAnswer(kind="final", content="完成"), token_usage=2),
+        ]
+    )
+    runtime = AgentRuntime(
+        adapter=adapter,
+        event_sink=sink,
+        seed=7,
+        tools=registry,
+        policy=PolicyEngine(PolicyConfig(allowed_tools={"tracking"})),
+        chaos=ChaosInjector(
+            [FaultSpec(type=fault_type, tool_name="tracking", call_index=1)],
+            seed=7,
+        ),
+    )
+
+    runtime.run("调用工具", run_id=f"run-{fault_type.value}")
+
+    assert handler_saw_fault is False
+    types = [event.type.value for event in sink.events]
+    tool_start = types.index("ToolStarted")
+    assert types[tool_start : tool_start + 3] == [
+        "ToolStarted",
+        "FaultInjected",
+        "ToolSucceeded",
+    ]
+
+
+def test_extra_latency_emits_before_handler_and_sanitizes_delay() -> None:
+    class TrackingInput(StrictModel):
+        value: int
+
+    sink = InMemoryEventSink()
+    handler_saw_fault = False
+
+    def handler(arguments: object) -> ToolResult:
+        nonlocal handler_saw_fault
+        handler_saw_fault = any(event.type.value == "FaultInjected" for event in sink.events)
+        return ToolResult(call_id="", tool_name="tracking", success=True, output={"value": 1})
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolSpec(
+            name="tracking",
+            description="track latency ordering",
+            input_model=TrackingInput,
+            handler=handler,
+        )
+    )
+    adapter = FakeAdapter(
+        script=[
+            ModelResponse(
+                action=ToolCall(
+                    kind="tool",
+                    call_id="1",
+                    tool_name="tracking",
+                    arguments={"value": 1},
+                ),
+                token_usage=4,
+            ),
+            ModelResponse(action=FinalAnswer(kind="final", content="完成"), token_usage=2),
+        ]
+    )
+    runtime = AgentRuntime(
+        adapter=adapter,
+        event_sink=sink,
+        seed=7,
+        tools=registry,
+        policy=PolicyEngine(PolicyConfig(allowed_tools={"tracking"})),
+        chaos=ChaosInjector(
+            [
+                FaultSpec(
+                    type=FaultType.EXTRA_LATENCY,
+                    tool_name="tracking",
+                    call_index=1,
+                    payload={"delay_ms": "invalid"},
+                )
+            ],
+            seed=7,
+        ),
+    )
+
+    runtime.run("调用工具", run_id="run-extra-latency")
+
+    assert handler_saw_fault is True
+    types = [event.type.value for event in sink.events]
+    tool_start = types.index("ToolStarted")
+    assert types[tool_start : tool_start + 3] == [
+        "ToolStarted",
+        "FaultInjected",
+        "ToolSucceeded",
+    ]
+    tool_result = next(
+        event.payload["result"] for event in sink.events if event.type.value == "ToolSucceeded"
+    )
+    assert tool_result["metadata"]["delay_ms"] == 0

@@ -31,6 +31,11 @@ def default_clock(seq: int) -> str:
     return datetime.fromtimestamp(seq, UTC).isoformat()
 
 
+_PRE_EXECUTION_FAULTS = frozenset(
+    {FaultType.TIMEOUT, FaultType.TOOL_ERROR, FaultType.EXTRA_LATENCY}
+)
+
+
 class AgentRuntime:
     def __init__(
         self,
@@ -47,6 +52,10 @@ class AgentRuntime:
         self._seed = seed
         self._clock = clock or default_clock
         self._tools = tools if tools is not None else build_default_registry()
+        if chaos is not None and chaos.seed != seed:
+            raise ValueError(
+                f"chaos seed {chaos.seed} does not match runtime seed {seed}"
+            )
         self._chaos = chaos
         if policy is None:
             self._policy = PolicyEngine(PolicyConfig())
@@ -222,7 +231,7 @@ class AgentRuntime:
         directive = (
             self._chaos.before_tool(call, call_index) if self._chaos is not None else None
         )
-        if directive is not None:
+        if directive is not None and directive.fault_type in _PRE_EXECUTION_FAULTS:
             self._emit_fault_injected(emit, call, call_index, directive)
             if directive.fault_type in {FaultType.TIMEOUT, FaultType.TOOL_ERROR}:
                 result = ToolResult(
@@ -231,9 +240,9 @@ class AgentRuntime:
                     success=False,
                     error=directive.fault_type.value,
                     metadata={
+                        **directive.metadata,
                         "fault_injected": directive.fault_type.value,
                         "message": directive.message,
-                        **directive.metadata,
                     },
                 )
                 self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
@@ -253,15 +262,17 @@ class AgentRuntime:
             result = result.model_copy(
                 update={"call_id": call.call_id, "tool_name": call.tool_name}
             )
-            if directive is not None:
-                if directive.fault_type == FaultType.EXTRA_LATENCY:
-                    metadata = dict(result.metadata)
-                    metadata.update(directive.metadata)
-                    metadata["fault_injected"] = directive.fault_type.value
-                    result = result.model_copy(update={"metadata": metadata})
-                else:
-                    assert self._chaos is not None
-                    result = self._chaos.after_tool(result, call_index)
+
+        if directive is not None:
+            if directive.fault_type == FaultType.EXTRA_LATENCY:
+                metadata = dict(result.metadata)
+                metadata.update(directive.metadata)
+                metadata["fault_injected"] = directive.fault_type.value
+                result = result.model_copy(update={"metadata": metadata})
+            elif result.success:
+                assert self._chaos is not None
+                result = self._chaos.after_tool(result, call_index)
+                self._emit_fault_injected(emit, call, call_index, directive)
 
         event_type = EventType.TOOL_SUCCEEDED if result.success else EventType.TOOL_FAILED
         self._emit_tool_result(emit, event_type, result)

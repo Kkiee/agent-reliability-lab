@@ -27,8 +27,21 @@ class FaultDirective(StrictModel):
 
 class ChaosInjector:
     def __init__(self, specs: list[FaultSpec], seed: int) -> None:
-        self._specs = specs
+        seen_calls: set[tuple[str, int]] = set()
+        for spec in specs:
+            key = (spec.tool_name, spec.call_index)
+            if key in seen_calls:
+                raise ValueError(
+                    f"duplicate fault spec for tool_name={spec.tool_name!r}, "
+                    f"call_index={spec.call_index}"
+                )
+            seen_calls.add(key)
+        self._specs = list(specs)
         self._seed = seed
+
+    @property
+    def seed(self) -> int:
+        return self._seed
 
     def before_tool(self, call: ToolCall, call_index: int) -> FaultDirective | None:
         spec = self._matching_spec(call.tool_name, call_index)
@@ -37,11 +50,11 @@ class ChaosInjector:
 
         metadata = dict(spec.payload)
         if spec.type == FaultType.EXTRA_LATENCY:
-            metadata.setdefault("delay_ms", _delay_ms(spec.payload))
+            metadata["delay_ms"] = _delay_ms(spec.payload)
 
         return FaultDirective(
             fault_type=spec.type,
-            message=spec.message or _DEFAULT_MESSAGES[spec.type],
+            message=_message(spec),
             metadata=metadata,
         )
 
@@ -92,12 +105,20 @@ def _transform_output(spec: FaultSpec, output: object | None) -> object | None:
     if spec.type == FaultType.DUPLICATE_RESULT:
         return [output, copy.deepcopy(output)]
     if spec.type == FaultType.PROMPT_INJECTION:
-        text = spec.payload.get("text", spec.message)
+        text = spec.payload.get("text")
+        if text is None:
+            text = _message(spec)
         return {
             "original": output,
             "untrusted_instruction": text if isinstance(text, str) else str(text),
         }
     if spec.type == FaultType.CONTRADICTORY_RESULT:
-        value = spec.payload.get("value", spec.message)
+        value = spec.payload.get("value")
+        if value is None:
+            value = _message(spec)
         return {"original": output, "contradictory_value": value}
     return output
+
+
+def _message(spec: FaultSpec) -> str:
+    return spec.message or _DEFAULT_MESSAGES[spec.type]

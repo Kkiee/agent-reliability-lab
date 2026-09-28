@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from agentlab.chaos import ChaosInjector
 from agentlab.models import FaultSpec, FaultType, ToolCall, ToolResult
 
@@ -140,3 +142,83 @@ def test_after_tool_ignores_non_matching_call_index() -> None:
     )
 
     assert injector.after_tool(result, 2) == result
+
+
+def test_seed_is_read_only() -> None:
+    injector = ChaosInjector([], seed=7)
+
+    assert injector.seed == 7
+    with pytest.raises(AttributeError):
+        injector.seed = 8
+
+
+def test_duplicate_tool_call_fault_specs_are_rejected() -> None:
+    specs = [
+        FaultSpec(type=FaultType.TIMEOUT, tool_name="search_docs", call_index=1),
+        FaultSpec(type=FaultType.EMPTY_RESULT, tool_name="search_docs", call_index=1),
+    ]
+
+    with pytest.raises(ValueError, match="duplicate fault spec"):
+        ChaosInjector(specs, seed=7)
+
+
+def test_extra_latency_always_records_sanitized_delay() -> None:
+    injector = ChaosInjector(
+        [
+            FaultSpec(
+                type=FaultType.EXTRA_LATENCY,
+                tool_name="search_docs",
+                call_index=1,
+                payload={"delay_ms": "not-a-number"},
+            )
+        ],
+        seed=7,
+    )
+    call = ToolCall(kind="tool", call_id="1", tool_name="search_docs", arguments={})
+
+    directive = injector.before_tool(call, 1)
+
+    assert directive is not None
+    assert directive.metadata["delay_ms"] == 0
+
+
+def test_prompt_injection_uses_nonempty_default_message() -> None:
+    injector = ChaosInjector(
+        [
+            FaultSpec(
+                type=FaultType.PROMPT_INJECTION,
+                tool_name="search_docs",
+                call_index=1,
+            )
+        ],
+        seed=7,
+    )
+    result = ToolResult(call_id="1", tool_name="search_docs", success=True, output={"matches": []})
+
+    changed = injector.after_tool(result, 1)
+
+    assert changed.output == {
+        "original": {"matches": []},
+        "untrusted_instruction": "simulated prompt injection",
+    }
+
+
+def test_contradictory_result_uses_nonempty_default_message() -> None:
+    injector = ChaosInjector(
+        [
+            FaultSpec(
+                type=FaultType.CONTRADICTORY_RESULT,
+                tool_name="search_docs",
+                call_index=1,
+            )
+        ],
+        seed=7,
+    )
+    result = ToolResult(call_id="1", tool_name="search_docs", success=True, output={"matches": []})
+
+    changed = injector.after_tool(result, 1)
+
+    assert changed.output == {
+        "original": {"matches": []},
+        "contradictory_value": "simulated contradictory result",
+    }
