@@ -36,9 +36,18 @@ Day 3 adds:
 - Canonical `RuntimeState` hashing and runtime persistence integration for saved run records.
 - A deterministic `ReplayEngine` that reconstructs state only from persisted events and verifies the replay hash against the saved state hash without calling model adapters or tools.
 
+Day 4 adds:
+
+- A deterministic `ChaosInjector` whose probability decisions depend only on the Run seed and exact tool call index.
+- Pre-execution `timeout` and `tool_error` faults that record `FaultInjected` and `ToolFailed` without executing the tool handler.
+- Post-execution transformations for malformed JSON, empty results, duplicate results, prompt injection, and contradictory evidence.
+- Deterministic `extra_latency` metadata that does not use wall-clock measurements, so event and state hashes remain reproducible.
+- Replay compatibility for faulted runs: replay reconstructs results from persisted events and never reruns chaos injection.
+
 Current limitations:
 
 - `send_message` does not contact any external service; it only appends to an in-memory `MessageRecorder`.
 - No real side-effect tools are implemented.
 - File storage is local and single-process; it does not provide cross-process locking or distributed coordination.
-- Chaos injection, scenario loading, reporting, and CLI support are not implemented yet.
+- Scenario loading, evaluation, reporting, and CLI support are not implemented yet.
+- `extra_latency` records a deterministic delay value but does not sleep, so local runs remain fast and hash-stable.

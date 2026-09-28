@@ -15,6 +15,17 @@ class ActionType(StrEnum):
     FINAL = "final"
 
 
+class FaultType(StrEnum):
+    TIMEOUT = "timeout"
+    TOOL_ERROR = "tool_error"
+    MALFORMED_JSON = "malformed_json"
+    EMPTY_RESULT = "empty_result"
+    EXTRA_LATENCY = "extra_latency"
+    DUPLICATE_RESULT = "duplicate_result"
+    PROMPT_INJECTION = "prompt_injection"
+    CONTRADICTORY_RESULT = "contradictory_result"
+
+
 class EventType(StrEnum):
     RUN_STARTED = "RunStarted"
     MODEL_REQUESTED = "ModelRequested"
@@ -24,6 +35,7 @@ class EventType(StrEnum):
     TOOL_STARTED = "ToolStarted"
     TOOL_SUCCEEDED = "ToolSucceeded"
     TOOL_FAILED = "ToolFailed"
+    FAULT_INJECTED = "FaultInjected"
     RUN_COMPLETED = "RunCompleted"
     RUN_FAILED = "RunFailed"
     RUN_TERMINATED = "RunTerminated"
@@ -70,6 +82,15 @@ class PolicyConfig(StrictModel):
     repeated_call_limit: int = Field(default=3, ge=2)
     allow_side_effects: bool = False
     approval_required_tools: set[str] = Field(default_factory=set)
+
+
+class FaultSpec(StrictModel):
+    type: FaultType
+    tool_name: str = Field(min_length=1)
+    call_index: int = Field(ge=1)
+    probability: float = Field(default=1.0, ge=0.0, le=1.0)
+    message: str = ""
+    payload: dict[str, object] = Field(default_factory=dict)
 
 
 class ToolResult(StrictModel):

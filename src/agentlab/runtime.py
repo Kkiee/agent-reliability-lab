@@ -7,9 +7,11 @@ from datetime import UTC, datetime
 from pydantic import ValidationError
 
 from agentlab.adapters.base import ModelAdapter
+from agentlab.chaos import ChaosInjector, FaultDirective
 from agentlab.events import Event, InMemoryEventSink, compute_state_hash
 from agentlab.models import (
     EventType,
+    FaultType,
     FinalAnswer,
     PolicyConfig,
     RunRecord,
@@ -38,12 +40,14 @@ class AgentRuntime:
         clock: Callable[[int], str] | None = None,
         tools: ToolRegistry | None = None,
         policy: PolicyEngine | PolicyConfig | None = None,
+        chaos: ChaosInjector | None = None,
     ) -> None:
         self._adapter = adapter
         self._event_sink = event_sink
         self._seed = seed
         self._clock = clock or default_clock
         self._tools = tools if tools is not None else build_default_registry()
+        self._chaos = chaos
         if policy is None:
             self._policy = PolicyEngine(PolicyConfig())
         elif isinstance(policy, PolicyConfig):
@@ -214,6 +218,27 @@ class AgentRuntime:
             self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
             return result
 
+        call_index = state.tool_calls
+        directive = (
+            self._chaos.before_tool(call, call_index) if self._chaos is not None else None
+        )
+        if directive is not None:
+            self._emit_fault_injected(emit, call, call_index, directive)
+            if directive.fault_type in {FaultType.TIMEOUT, FaultType.TOOL_ERROR}:
+                result = ToolResult(
+                    call_id=call.call_id,
+                    tool_name=call.tool_name,
+                    success=False,
+                    error=directive.fault_type.value,
+                    metadata={
+                        "fault_injected": directive.fault_type.value,
+                        "message": directive.message,
+                        **directive.metadata,
+                    },
+                )
+                self._emit_tool_result(emit, EventType.TOOL_FAILED, result)
+                return result
+
         try:
             result = spec.handler(arguments)
         except Exception as exc:
@@ -228,10 +253,38 @@ class AgentRuntime:
             result = result.model_copy(
                 update={"call_id": call.call_id, "tool_name": call.tool_name}
             )
+            if directive is not None:
+                if directive.fault_type == FaultType.EXTRA_LATENCY:
+                    metadata = dict(result.metadata)
+                    metadata.update(directive.metadata)
+                    metadata["fault_injected"] = directive.fault_type.value
+                    result = result.model_copy(update={"metadata": metadata})
+                else:
+                    assert self._chaos is not None
+                    result = self._chaos.after_tool(result, call_index)
 
         event_type = EventType.TOOL_SUCCEEDED if result.success else EventType.TOOL_FAILED
         self._emit_tool_result(emit, event_type, result)
         return result
+
+    @staticmethod
+    def _emit_fault_injected(
+        emit: Callable[[EventType, dict[str, object]], None],
+        call: ToolCall,
+        call_index: int,
+        directive: FaultDirective,
+    ) -> None:
+        emit(
+            EventType.FAULT_INJECTED,
+            {
+                "call_id": call.call_id,
+                "tool_name": call.tool_name,
+                "call_index": call_index,
+                "fault_type": directive.fault_type.value,
+                "message": directive.message,
+                "metadata": directive.metadata,
+            },
+        )
 
     @staticmethod
     def _emit_tool_result(
