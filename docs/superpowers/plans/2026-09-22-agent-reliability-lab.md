@@ -731,7 +731,7 @@ git commit -m "feat: add append-only event store and deterministic replay"
 - Consumes: `ToolCall`、`ToolResult`、`RuntimeState`、`PolicyEngine`。
 - Produces: `FaultType`、`FaultSpec`、`FaultDirective`、`ChaosInjector.before_tool()`、`ChaosInjector.after_tool()`。
 
-- [ ] **Step 1: 写故障注入确定性测试**
+- [x] **Step 1: 写故障注入确定性测试**
 
 创建 `tests/unit/test_chaos.py`：
 
@@ -772,7 +772,7 @@ def test_after_tool_can_replace_with_malformed_json() -> None:
     assert changed.metadata["fault_injected"] == "malformed_json"
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run:
 
@@ -782,7 +782,7 @@ python -m pytest tests/unit/test_chaos.py -v
 
 Expected: FAIL，错误包含 `No module named 'agentlab.chaos'`。
 
-- [ ] **Step 3: 实现故障模型和注入器**
+- [x] **Step 3: 实现故障模型和注入器**
 
 `FaultType` 和 `FaultSpec` 必须放在 `models.py`，供 Scenario、Runtime 和 ChaosInjector 共同使用。`src/agentlab/chaos.py` 只放执行逻辑：
 
@@ -797,7 +797,7 @@ class FaultDirective(StrictModel):
 
 注入器只匹配 `tool_name` 和精确 `call_index`。涉及概率时使用 `random.Random(seed + call_index)`，保证不同 Run 之间互不影响。
 
-- [ ] **Step 4: 接入 Runtime 并写恢复测试**
+- [x] **Step 4: 接入 Runtime 并写恢复测试**
 
 Runtime 执行工具前调用 `before_tool()`：
 
@@ -843,7 +843,7 @@ def test_timeout_then_retry_can_complete(tmp_path: Path) -> None:
     assert types[-1] == "RunCompleted"
 ```
 
-- [ ] **Step 5: 运行测试并修正**
+- [x] **Step 5: 运行测试并修正**
 
 Run:
 
@@ -855,7 +855,7 @@ python -m mypy src
 
 Expected: 全部 PASS。
 
-- [ ] **Step 6: 提交 Day 4**
+- [x] **Step 6: 提交 Day 4**
 
 ```bash
 git add src tests
