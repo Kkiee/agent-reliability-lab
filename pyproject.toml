@@ -17,6 +17,9 @@ dependencies = [
   "httpx>=0.27,<1",
 ]
 
+[project.scripts]
+agentlab = "agentlab.cli:app"
+
 [project.optional-dependencies]
 dev = [
   "mypy>=1.11,<2",

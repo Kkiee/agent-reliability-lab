@@ -51,11 +51,17 @@ Day 5 adds:
 - An evaluator for task success, recovery, policy violations versus denials, termination, steps, tool calls, token usage, latency, replay fidelity, and required-event trace completeness.
 - A deterministic suite regression summary with pass counts and pass rate over the fixture scenarios.
 
+Day 6 adds:
+
+- JSON and fully offline HTML reports for benchmark summaries and individual runs, including per-scenario metrics, failures, fault injections, recoveries, policy denials, replay consistency, version, generation time, and seed.
+- A Typer CLI with `list-scenarios`, `run`, `replay`, `report`, `bench`, and `demo` commands. `bench` returns a nonzero exit code below its pass-rate threshold, and `replay` reports `model_calls=0 tool_calls=0`.
+- An `OpenAICompatibleAdapter` for Chat Completions-compatible endpoints such as Ollama. It reads `AGENTLAB_BASE_URL`, `AGENTLAB_API_KEY`, and `AGENTLAB_MODEL`; tests use `httpx.MockTransport` and do not access the network.
+
 Current limitations:
 
 - `send_message` does not contact any external service; it only appends to an in-memory `MessageRecorder`.
 - No real side-effect tools are implemented.
 - File storage is local and single-process; it does not provide cross-process locking or distributed coordination.
-- Scenario evaluation is a deterministic fixture-based reliability benchmark, not a general model capability score.
-- Reporting and CLI support are not implemented yet.
+- Scenario evaluation and generated reports are a deterministic fixture-based reliability benchmark, not a general model capability score.
+- The OpenAI-compatible adapter supports only Chat Completions. Selecting it contacts the configured external endpoint; the benchmark, demo, and default CLI path use `FakeAdapter`.
 - `extra_latency` records a deterministic delay value but does not sleep, so local runs remain fast and hash-stable.

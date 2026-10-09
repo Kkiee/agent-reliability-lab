@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    :root { color-scheme: light; --ink: #17202a; --muted: #5d6d7e; --line: #d5d8dc; --paper: #fbfcfd; --pass: #137333; --fail: #a50e0e; --accent: #1a5276; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef2f5; color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 28px auto 48px; }
+    header, section, article { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.2; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 21px; margin-top: 4px; }
+    h3 { font-size: 17px; }
+    p { margin: 6px 0; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .muted { color: var(--muted); }
+    .summary-grid, .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 10px; }
+    .summary-card, .metric { border: 1px solid var(--line); border-radius: 9px; padding: 12px; background: white; }
+    .summary-card strong, .metric strong { display: block; font-size: 22px; margin-top: 2px; }
+    .metric span { color: var(--muted); display: block; font-size: 12px; }
+    .pass { color: var(--pass); font-weight: 700; }
+    .fail { color: var(--fail); font-weight: 700; }
+    .scenario-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; justify-content: space-between; }
+    code { background: #edf0f2; border-radius: 4px; padding: 2px 5px; word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; font-weight: 700; }
+    ul { margin: 8px 0; padding-left: 20px; }
+    .limitation { border-left: 4px solid #b9770e; }
+    @media (max-width: 640px) { main { width: min(100% - 18px, 1120px); margin-top: 12px; } header, section, article { padding: 15px; } table { font-size: 13px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Agent Reliability Lab</p>
+    <h1>{{ title }}</h1>
+    <p class="muted">Deterministic fixture benchmark · version {{ project_version }} · generated {{ generated_at }} · seed {{ seed if kind == "benchmark" else "from run manifest" }}</p>
+  </header>
+
+  {% if kind == "benchmark" %}
+  <section aria-labelledby="overview-heading">
+    <h2 id="overview-heading">Overview</h2>
+    <p><strong>{{ total_scenarios }} scenarios</strong> · pass rate ratio {{ "%.2f"|format(pass_rate) }}</p>
+    <div class="summary-grid">
+      <div class="summary-card" aria-label="Completed {{ passed_scenarios }}"><span>Completed</span><strong>{{ passed_scenarios }}</strong></div>
+      <div class="summary-card"><span>Failed</span><strong>{{ failed_scenarios }}</strong></div>
+      <div class="summary-card"><span>Pass rate</span><strong>{{ pass_rate_percent }}</strong></div>
+      <div class="summary-card"><span>Seed</span><strong>{{ seed }}</strong></div>
+      <div class="summary-card"><span>Fault injections</span><strong>{{ fault_injections }}</strong></div>
+      <div class="summary-card"><span>Recoveries</span><strong>{{ recoveries }}</strong></div>
+      <div class="summary-card"><span>Policy denials</span><strong>{{ policy_denials }}</strong></div>
+      <div class="summary-card"><span>Replay consistency</span><strong>{{ replay_consistency_percent }}</strong></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="scenarios-heading">
+    <h2 id="scenarios-heading">Scenarios</h2>
+    {% for result in results %}
+    <article>
+      <div class="scenario-head">
+        <div>
+          <h3>{{ result.scenario_name }}</h3>
+          <p class="muted">Run ID <code>{{ result.run_id }}</code> · status <code>{{ result.status }}</code></p>
+        </div>
+        <p class="{{ 'pass' if result.passed else 'fail' }}">{{ 'Pass' if result.passed else 'Fail' }}</p>
+      </div>
+      {% if result.failures %}
+      <p class="fail">Failure reasons: {{ result.failures | join('; ') }}</p>
+      {% else %}
+      <p class="pass">Failure reasons: none</p>
+      {% endif %}
+      <details open>
+        <summary>Metrics</summary>
+        <div class="metric-grid">
+          {% for metric in result.metric_items %}
+          <div class="metric"><span>{{ metric.name }}</span><strong>{{ metric.value }}</strong></div>
+          {% endfor %}
+        </div>
+      </details>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <section aria-labelledby="run-heading">
+    <h2 id="run-heading">Run facts</h2>
+    <p>Run ID <code>{{ run_id }}</code> · status <code>{{ status }}</code></p>
+    <div class="summary-grid">
+      <div class="summary-card"><span>Steps</span><strong>{{ steps }}</strong></div>
+      <div class="summary-card"><span>Tool calls</span><strong>{{ tool_calls }}</strong></div>
+      <div class="summary-card"><span>Token usage</span><strong>{{ token_usage }}</strong></div>
+      <div class="summary-card"><span>Fault injections</span><strong>{{ fault_injections }}</strong></div>
+      <div class="summary-card"><span>Recoveries</span><strong>{{ recoveries }}</strong></div>
+      <div class="summary-card"><span>Policy denials</span><strong>{{ policy_denials }}</strong></div>
+      <div class="summary-card"><span>Replay consistent</span><strong>{{ 'yes' if replay_consistent else 'no' }}</strong></div>
+      <div class="summary-card"><span>Model calls</span><strong>0</strong></div>
+      <div class="summary-card"><span>Tool calls during replay</span><strong>0</strong></div>
+    </div>
+    <p>Persisted state hash: <code>{{ state_hash }}</code></p>
+    {% if replay_hash %}<p>Replay state hash: <code>{{ replay_hash }}</code></p>{% endif %}
+    {% if replay_error %}<p class="fail">Replay error: {{ replay_error }}</p>{% endif %}
+  </section>
+  {% endif %}
+
+  <section class="limitation" aria-labelledby="limitations-heading">
+    <h2 id="limitations-heading">Limitations</h2>
+    <p>{{ limitations }}</p>
+    <p class="muted">Offline report: all styles are embedded and no remote assets are loaded.</p>
+  </section>
+</main>
+</body>
+</html>

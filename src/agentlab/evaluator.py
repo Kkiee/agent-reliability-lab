@@ -30,6 +30,7 @@ class EvaluationResult(StrictModel):
     metrics: dict[str, float]
     failures: list[str]
     report_path: str | None = None
+    status: RunStatus = RunStatus.FAILED
 
 
 class BenchmarkSummary(StrictModel):
@@ -85,7 +86,8 @@ class Evaluator:
             for event in events
         )
         policy_violation_count = _policy_violation_count(events)
-        fault_injected = EventType.FAULT_INJECTED in event_type_set
+        fault_injection_count = float(event_types.count(EventType.FAULT_INJECTED))
+        fault_injected = fault_injection_count > 0
         recovered = fault_injected and run.status == RunStatus.COMPLETED
         recovery_rate = 1.0 if not fault_injected else float(recovered)
         termination_reason = _termination_reason(events)
@@ -148,10 +150,13 @@ class Evaluator:
         return EvaluationResult(
             scenario_name=scenario_name or run.run_id,
             run_id=run.run_id,
+            status=run.status,
             passed=not failures,
             metrics={
                 "task_success": task_success,
                 "recovery_rate": recovery_rate,
+                "fault_injection_count": fault_injection_count,
+                "recovery_count": 1.0 if fault_injected and recovered else 0.0,
                 "policy_violation_count": float(policy_violation_count),
                 "policy_denial_count": float(policy_denial_count),
                 "loop_termination_count": loop_termination_count,
@@ -171,9 +176,10 @@ def evaluate_suite(
     scenarios: Sequence[Scenario],
     runs_dir: Path,
     seed: int = 42,
+    run_id_prefix: str = "benchmark",
 ) -> BenchmarkSummary:
     results = [
-        run_scenario(scenario, runs_dir=runs_dir, seed=seed, run_id_prefix="benchmark")
+        run_scenario(scenario, runs_dir=runs_dir, seed=seed, run_id_prefix=run_id_prefix)
         for scenario in scenarios
     ]
     passed_scenarios = sum(result.passed for result in results)
