@@ -18,11 +18,16 @@ class DuplicateScenarioError(ScenarioLoadError):
 
 def load_scenario(path: Path) -> Scenario:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise ScenarioLoadError(f"invalid JSON in scenario file {path}: {exc}") from exc
+        raw = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ScenarioLoadError(f"invalid UTF-8 in scenario file {path}: {exc}") from exc
     except OSError as exc:
         raise ScenarioLoadError(f"cannot read scenario file {path}: {exc}") from exc
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ScenarioLoadError(f"invalid JSON in scenario file {path}: {exc}") from exc
 
     try:
         return Scenario.model_validate(payload)

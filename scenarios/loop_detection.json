@@ -48,6 +48,7 @@
   ],
   "expected": {
     "status": "terminated",
+    "expected_termination_reason": "repeated_tool_call",
     "required_events": [
       "PolicyEvaluated",
       "RunTerminated"

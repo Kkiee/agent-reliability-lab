@@ -7,6 +7,8 @@ import pytest
 
 from agentlab.scenario import load_scenario, load_scenarios
 
+SCENARIOS_DIR = Path(__file__).resolve().parents[2] / "scenarios"
+
 
 def _scenario_payload(name: str = "sample") -> dict[str, object]:
     return {
@@ -27,7 +29,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def test_all_nine_scenarios_load() -> None:
-    scenarios = load_scenarios(Path("scenarios"))
+    scenarios = load_scenarios(SCENARIOS_DIR)
     assert {scenario.name for scenario in scenarios} == {
         "happy_path",
         "tool_timeout_recovery",
@@ -56,6 +58,14 @@ def test_load_scenario_reports_invalid_json(tmp_path: Path) -> None:
     path.write_text("{not-json", encoding="utf-8")
 
     with pytest.raises(ValueError, match="invalid JSON"):
+        load_scenario(path)
+
+
+def test_load_scenario_reports_invalid_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "invalid-utf8.json"
+    path.write_bytes(b"\xff\xfe{not-utf8")
+
+    with pytest.raises(ValueError, match="UTF-8"):
         load_scenario(path)
 
 

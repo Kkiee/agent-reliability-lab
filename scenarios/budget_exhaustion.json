@@ -37,6 +37,7 @@
   ],
   "expected": {
     "status": "terminated",
+    "expected_termination_reason": "token_budget_exceeded",
     "required_events": [
       "PolicyEvaluated",
       "RunTerminated"

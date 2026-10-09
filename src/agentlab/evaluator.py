@@ -88,13 +88,17 @@ class Evaluator:
         fault_injected = EventType.FAULT_INJECTED in event_type_set
         recovered = fault_injected and run.status == RunStatus.COMPLETED
         recovery_rate = 1.0 if not fault_injected else float(recovered)
-        loop_termination_count = float(_termination_reason(events) == "repeated_tool_call")
+        termination_reason = _termination_reason(events)
+        loop_termination_count = float(termination_reason == "repeated_tool_call")
         trace_completeness = float(
             all(event_type in event_type_set for event_type in expected.required_events)
         )
-        replay_fidelity = 1.0
-        if replay is not None and replay.state_hash != run.state_hash:
-            replay_fidelity = 0.0
+        replay_fidelity = 0.0
+        replay_failure: str | None = "replay_missing" if replay is None else None
+        if replay is not None and replay.state_hash == run.state_hash:
+            replay_fidelity = 1.0
+        elif replay is not None:
+            replay_failure = "replay_mismatch"
 
         status_matches = run.status == expected.status
         final_answer_matches = _final_answer_matches(run.final_answer, expected)
@@ -114,6 +118,14 @@ class Evaluator:
                 )
         if expected.recovered is not None and expected.recovered != recovered:
             failures.append(f"recovery_mismatch: expected {expected.recovered}, got {recovered}")
+        if (
+            expected.expected_termination_reason is not None
+            and expected.expected_termination_reason != termination_reason
+        ):
+            failures.append(
+                "termination_reason_mismatch:"
+                f"{expected.expected_termination_reason}!={termination_reason}"
+            )
         if policy_violation_count > expected.max_policy_violations:
             failures.append(
                 "policy_violation_count:"
@@ -130,8 +142,8 @@ class Evaluator:
             failures.append(f"min_tool_calls:{tool_call_count}<{expected.min_tool_calls}")
         if expected.max_tool_calls is not None and tool_call_count > expected.max_tool_calls:
             failures.append(f"max_tool_calls:{tool_call_count}>{expected.max_tool_calls}")
-        if replay_fidelity != 1.0:
-            failures.append("replay_mismatch")
+        if replay_failure is not None:
+            failures.append(replay_failure)
 
         return EvaluationResult(
             scenario_name=scenario_name or run.run_id,
@@ -161,7 +173,7 @@ def evaluate_suite(
     seed: int = 42,
 ) -> BenchmarkSummary:
     results = [
-        _evaluate_scenario(scenario, runs_dir=runs_dir, seed=seed)
+        run_scenario(scenario, runs_dir=runs_dir, seed=seed, run_id_prefix="benchmark")
         for scenario in scenarios
     ]
     passed_scenarios = sum(result.passed for result in results)
@@ -176,7 +188,12 @@ def evaluate_suite(
     )
 
 
-def _evaluate_scenario(scenario: Scenario, runs_dir: Path, seed: int) -> EvaluationResult:
+def run_scenario(
+    scenario: Scenario,
+    runs_dir: Path,
+    seed: int = 42,
+    run_id_prefix: str = "test",
+) -> EvaluationResult:
     store = FileEventStore(runs_dir)
     runtime = AgentRuntime(
         adapter=FakeAdapter(scenario.model_script),
@@ -186,7 +203,7 @@ def _evaluate_scenario(scenario: Scenario, runs_dir: Path, seed: int) -> Evaluat
         policy=PolicyEngine(scenario.policy),
         chaos=ChaosInjector(scenario.faults, seed=seed),
     )
-    record = runtime.run(scenario.user_input, run_id=f"benchmark-{scenario.name}")
+    record = runtime.run(scenario.user_input, run_id=f"{run_id_prefix}-{scenario.name}")
     events = store.read_events(record.run_id)
     replay = ReplayEngine(store).replay(record.run_id)
     return Evaluator().evaluate(

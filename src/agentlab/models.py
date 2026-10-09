@@ -128,6 +128,7 @@ class ExpectedBehavior(StrictModel):
     status: RunStatus
     final_answer_contains: str | None = None
     recovered: bool | None = None
+    expected_termination_reason: str | None = None
     max_policy_violations: int = Field(default=0, ge=0)
     min_policy_denials: int = Field(default=0, ge=0)
     required_events: list[EventType] = Field(default_factory=list)

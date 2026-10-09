@@ -65,7 +65,7 @@ def test_trace_completeness_rewards_required_events() -> None:
         required_events=[EventType.FAULT_INJECTED, EventType.TOOL_SUCCEEDED],
     )
 
-    result = Evaluator().evaluate(_run(), events, expected)
+    result = Evaluator().evaluate(_run(), events, expected, replay=_run())
 
     assert result.metrics["trace_completeness"] == 1.0
     assert result.metrics["task_success"] == 1.0
@@ -80,7 +80,7 @@ def test_missing_required_event_fails_scenario() -> None:
         required_events=[EventType.FAULT_INJECTED],
     )
 
-    result = Evaluator().evaluate(_run(), events, expected)
+    result = Evaluator().evaluate(_run(), events, expected, replay=_run())
 
     assert result.passed is False
     assert "missing_required_event:FaultInjected" in result.failures
@@ -93,11 +93,13 @@ def test_task_success_requires_expected_status_and_final_answer() -> None:
         _run(),
         events,
         ExpectedBehavior(status=RunStatus.COMPLETED, final_answer_contains="done"),
+        replay=_run(),
     )
     mismatch = Evaluator().evaluate(
         _run(),
         events,
         ExpectedBehavior(status=RunStatus.COMPLETED, final_answer_contains="missing"),
+        replay=_run(),
     )
 
     assert success.metrics["task_success"] == 1.0
@@ -110,16 +112,19 @@ def test_recovery_rate_distinguishes_faulted_and_clean_runs() -> None:
         _run(),
         [_event(1, EventType.RUN_STARTED, {})],
         ExpectedBehavior(status=RunStatus.COMPLETED),
+        replay=_run(),
     )
     recovered = Evaluator().evaluate(
         _run(),
         [_event(1, EventType.FAULT_INJECTED, {})],
         ExpectedBehavior(status=RunStatus.COMPLETED, recovered=True),
+        replay=_run(),
     )
     unrecovered = Evaluator().evaluate(
         _run(RunStatus.TERMINATED),
         [_event(1, EventType.FAULT_INJECTED, {})],
         ExpectedBehavior(status=RunStatus.TERMINATED, recovered=False),
+        replay=_run(RunStatus.TERMINATED),
     )
 
     assert clean.metrics["recovery_rate"] == 1.0
@@ -149,7 +154,7 @@ def test_policy_violation_counts_execution_but_denial_counts_decisions() -> None
         min_policy_denials=2,
     )
 
-    result = Evaluator().evaluate(_run(), events, expected)
+    result = Evaluator().evaluate(_run(), events, expected, replay=_run())
 
     assert result.metrics["policy_violation_count"] == 1.0
     assert result.metrics["policy_denial_count"] == 2.0
@@ -167,10 +172,16 @@ def test_loop_termination_metric_reads_run_terminated_reason() -> None:
                 {"reason": "repeated_tool_call", "steps": 2},
             )
         ],
-        ExpectedBehavior(status=RunStatus.TERMINATED, required_events=[EventType.RUN_TERMINATED]),
+        ExpectedBehavior(
+            status=RunStatus.TERMINATED,
+            required_events=[EventType.RUN_TERMINATED],
+            expected_termination_reason="repeated_tool_call",
+        ),
+        replay=_run(RunStatus.TERMINATED),
     )
 
     assert result.metrics["loop_termination_count"] == 1.0
+    assert result.passed is True
 
 
 def test_aggregate_metrics_use_run_events_and_tool_durations() -> None:
@@ -214,6 +225,7 @@ def test_aggregate_metrics_use_run_events_and_tool_durations() -> None:
         run,
         events,
         ExpectedBehavior(status=RunStatus.COMPLETED),
+        replay=run,
     )
 
     assert result.metrics["average_steps"] == 2.0
@@ -238,6 +250,42 @@ def test_replay_fidelity_requires_matching_replay_record() -> None:
     assert "replay_mismatch" in result.failures
 
 
+def test_missing_replay_cannot_award_full_fidelity() -> None:
+    result = Evaluator().evaluate(
+        _run(),
+        [],
+        ExpectedBehavior(status=RunStatus.COMPLETED),
+    )
+
+    assert result.metrics["replay_fidelity"] == 0.0
+    assert result.passed is False
+    assert "replay_missing" in result.failures
+
+
+def test_expected_termination_reason_must_match_persisted_reason() -> None:
+    result = Evaluator().evaluate(
+        _run(RunStatus.TERMINATED),
+        [
+            _event(
+                1,
+                EventType.RUN_TERMINATED,
+                {"reason": "token_budget_exceeded", "steps": 2},
+            )
+        ],
+        ExpectedBehavior(
+            status=RunStatus.TERMINATED,
+            expected_termination_reason="repeated_tool_call",
+        ),
+        replay=_run(RunStatus.TERMINATED),
+    )
+
+    assert result.passed is False
+    assert (
+        "termination_reason_mismatch:repeated_tool_call!=token_budget_exceeded"
+        in result.failures
+    )
+
+
 def test_tool_call_bounds_and_policy_denials_are_enforced() -> None:
     events = [
         _event(1, EventType.TOOL_REQUESTED, {"call_id": "call-1", "tool_name": "one"}),
@@ -249,7 +297,7 @@ def test_tool_call_bounds_and_policy_denials_are_enforced() -> None:
         max_tool_calls=1,
     )
 
-    result = Evaluator().evaluate(_run(), events, expected)
+    result = Evaluator().evaluate(_run(), events, expected, replay=_run())
 
     assert result.passed is False
     assert any("policy_denial_count" in failure for failure in result.failures)
