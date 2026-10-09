@@ -1444,7 +1444,7 @@ git commit -m "feat: add cli reports and openai-compatible adapter"
 - Consumes: 所有已实现模块。
 - Produces: 可安装包、可复现文档、CI 配置、`v0.1.0` 标签和发布说明。
 
-- [ ] **Step 1: 写 README**
+- [x] **Step 1: 写 README**
 
 README 结构固定为：
 
@@ -1470,7 +1470,7 @@ README 的真实性要求：
 - 已知限制至少包含：同步执行、本地文件存储、单进程、无分布式追踪、无真实副作用工具。
 - 不使用“赋能、颠覆、企业级、完全安全”等空泛词。
 
-- [ ] **Step 2: 写架构文档与 CHANGELOG**
+- [x] **Step 2: 写架构文档与 CHANGELOG**
 
 `docs/architecture.md` 必须解释：
 
@@ -1484,7 +1484,7 @@ README 的真实性要求：
 
 `CHANGELOG.md` 使用 Keep a Changelog 结构，初始版本包含 Added、Changed、Security、Known Limitations。
 
-- [ ] **Step 3: 添加 GitHub Actions**
+- [x] **Step 3: 添加 GitHub Actions**
 
 创建 `.github/workflows/ci.yml`：
 
@@ -1517,7 +1517,7 @@ jobs:
       - run: agentlab bench scenarios --runs-dir runs --fail-under 0.80
 ```
 
-- [ ] **Step 4: 运行完整质量门禁**
+- [x] **Step 4: 运行完整质量门禁**
 
 Run:
 
@@ -1539,7 +1539,7 @@ Expected:
 - `demo` 生成 JSON 和 HTML 文件。
 - HTML 在断网状态下可以打开并显示结果。
 
-- [ ] **Step 5: 检查仓库真实性**
+- [x] **Step 5: 检查仓库真实性**
 
 Run:
 
@@ -1555,7 +1555,7 @@ Expected:
 - 至少 7 个功能阶段提交，没有空的 `chore` 刷提交。
 - 扫描结果只允许出现环境变量名和文档示例，不允许出现真实凭据。
 
-- [ ] **Step 6: 提交 Day 7**
+- [x] **Step 6: 提交 Day 7**
 
 ```bash
 git add README.md LICENSE CHANGELOG.md docs .github examples
