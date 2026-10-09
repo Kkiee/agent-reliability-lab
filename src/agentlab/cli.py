@@ -98,7 +98,6 @@ def report_command(
     runs_dir: Annotated[Path, typer.Option("--runs-dir", help="Directory for saved runs.")] = Path(
         "runs"
     ),
-    html: Annotated[bool, typer.Option("--html/--no-html", help="Write an HTML report.")] = True,
     output: Annotated[
         Path | None,
         typer.Option("--output", help="Optional output path."),
@@ -106,8 +105,6 @@ def report_command(
 ) -> None:
     def action() -> None:
         destination = output or runs_dir / run_id / "report.html"
-        if not html:
-            raise ValueError("only HTML run reports are supported")
         report_path = write_run_html_report(run_id, FileEventStore(runs_dir), destination)
         typer.echo(str(report_path))
 

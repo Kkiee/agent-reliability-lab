@@ -74,3 +74,13 @@ def test_cli_errors_do_not_print_tracebacks(tmp_path: Path) -> None:
     assert result.exit_code != 0
     assert "Traceback" not in result.output
     assert "Error:" in result.output
+
+
+def test_report_command_does_not_expose_no_html(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        ["report", "missing-run", "--runs-dir", str(tmp_path), "--no-html"],
+    )
+
+    assert result.exit_code != 0
+    assert "No such option" in result.output

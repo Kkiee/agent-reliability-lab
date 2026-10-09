@@ -103,3 +103,47 @@ def test_run_html_report_uses_persisted_run_facts(tmp_path: Path) -> None:
     assert "Model calls" in html
     assert "cdn." not in html
     assert "https://" not in html
+
+
+def test_benchmark_html_escapes_untrusted_text(tmp_path: Path) -> None:
+    result = EvaluationResult(
+        scenario_name='<img src=x onerror="alert(1)">',
+        run_id="run-<b>id</b>",
+        status=RunStatus.FAILED,
+        passed=False,
+        metrics={"task_success": 0.0, "replay_fidelity": 1.0},
+        failures=["<script>alert(1)</script>"],
+    )
+    summary = BenchmarkSummary(
+        total_scenarios=1,
+        passed_scenarios=0,
+        failed_scenarios=1,
+        pass_rate=0.0,
+        results=[result],
+        seed=42,
+    )
+
+    path = write_benchmark_html_report(summary, tmp_path / "escaped.html")
+    html = path.read_text(encoding="utf-8")
+
+    assert "&lt;img src=x onerror=" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<img src=x" not in html
+    assert "<script>alert(1)</script>" not in html
+
+
+def test_run_html_report_uses_persisted_seed(tmp_path: Path) -> None:
+    scenario_path = Path(__file__).resolve().parents[2] / "scenarios" / "happy_path.json"
+    result = run_scenario(
+        load_scenario(scenario_path),
+        runs_dir=tmp_path,
+        seed=9876,
+        run_id_prefix="seed-run",
+    )
+    store = FileEventStore(tmp_path)
+
+    path = write_run_html_report(result.run_id, store, tmp_path / "seed-report.html")
+    html = path.read_text(encoding="utf-8")
+
+    assert "seed 9876" in html
+    assert "from run manifest" not in html

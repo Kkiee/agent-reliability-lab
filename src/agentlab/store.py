@@ -116,6 +116,16 @@ class FileEventStore:
     def load_state(self, run_id: str) -> RuntimeState:
         return self._load_snapshot(run_id).state
 
+    def load_manifest_metadata(self, run_id: str) -> dict[str, object]:
+        path = self._run_dir(run_id) / "manifest.json"
+        try:
+            manifest = _RunManifest.model_validate(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+            raise EventIntegrityError(f"invalid run manifest for run: {run_id}") from exc
+        if manifest.run_id != run_id:
+            raise EventIntegrityError("run manifest run id mismatch")
+        return dict(manifest.metadata)
+
     def load_state_hash(self, run_id: str) -> str:
         snapshot = self._load_snapshot(run_id)
         if snapshot.state_hash != compute_state_hash(snapshot.state):

@@ -134,7 +134,3 @@ def _usage_total(value: object) -> int | None:
     if isinstance(total_tokens, int) and not isinstance(total_tokens, bool):
         return total_tokens if total_tokens >= 0 else None
     return None
-
-
-def _is_non_negative_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0

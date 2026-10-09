@@ -101,16 +101,20 @@ def test_complete_reports_http_errors(status_code: int) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code, json={"error": "failed"})
 
-    with pytest.raises(OpenAICompatibleError, match=str(status_code)):
+    with pytest.raises(OpenAICompatibleError, match=str(status_code)) as exc_info:
         _adapter(handler).complete("finish", step=1)
+
+    assert "test-key" not in str(exc_info.value)
 
 
 def test_complete_reports_timeout() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timed out")
 
-    with pytest.raises(OpenAICompatibleError, match="timed out"):
+    with pytest.raises(OpenAICompatibleError, match="timed out") as exc_info:
         _adapter(handler).complete("finish", step=1)
+
+    assert "test-key" not in str(exc_info.value)
 
 
 def test_complete_reports_invalid_envelope_json() -> None:

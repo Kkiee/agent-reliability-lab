@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from agentlab import __version__
 from agentlab.evaluator import BenchmarkSummary, EvaluationResult
@@ -45,6 +45,10 @@ def write_benchmark_html_report(summary: BenchmarkSummary, path: Path) -> Path:
 def write_run_html_report(run_id: str, store: FileEventStore, path: Path) -> Path:
     state = store.load_state(run_id)
     events = store.read_events(run_id)
+    manifest_metadata = store.load_manifest_metadata(run_id)
+    seed = manifest_metadata.get("seed")
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise EventIntegrityError("run manifest seed must be an integer")
     persisted_hash = store.load_state_hash(run_id)
     replay_consistent = False
     replay_hash: str | None = None
@@ -69,6 +73,7 @@ def write_run_html_report(run_id: str, store: FileEventStore, path: Path) -> Pat
         "kind": "run",
         "project_version": __version__,
         "generated_at": _generated_at(),
+        "seed": seed,
         "run_id": run_id,
         "status": state.status.value,
         "steps": state.step,
@@ -162,7 +167,7 @@ def _generated_at() -> str:
 def _render(title: str, context: dict[str, Any]) -> str:
     environment = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        autoescape=select_autoescape(("html", "xml")),
+        autoescape=True,
         trim_blocks=True,
         lstrip_blocks=True,
     )
