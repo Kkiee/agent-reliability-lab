@@ -122,3 +122,24 @@ class RunRecord(StrictModel):
     steps: int = 0
     token_usage: int = 0
     state_hash: str = ""
+
+
+class ExpectedBehavior(StrictModel):
+    status: RunStatus
+    final_answer_contains: str | None = None
+    recovered: bool | None = None
+    max_policy_violations: int = Field(default=0, ge=0)
+    min_policy_denials: int = Field(default=0, ge=0)
+    required_events: list[EventType] = Field(default_factory=list)
+    min_tool_calls: int = Field(default=0, ge=0)
+    max_tool_calls: int | None = Field(default=None, ge=0)
+
+
+class Scenario(StrictModel):
+    name: str
+    description: str = ""
+    user_input: str
+    model_script: list[ModelResponse]
+    policy: PolicyConfig = Field(default_factory=PolicyConfig)
+    faults: list[FaultSpec] = Field(default_factory=list)
+    expected: ExpectedBehavior

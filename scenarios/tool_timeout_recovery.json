@@ -1,0 +1,53 @@
+{
+  "name": "tool_timeout_recovery",
+  "user_input": "查询文档并回答",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "retry policy"
+        }
+      },
+      "token_usage": 12
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "retry policy"
+        }
+      },
+      "token_usage": 12
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "重试后查询成功"
+      },
+      "token_usage": 8
+    }
+  ],
+  "faults": [
+    {
+      "type": "timeout",
+      "tool_name": "search_docs",
+      "call_index": 1,
+      "probability": 1.0
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "recovered": true,
+    "min_tool_calls": 2,
+    "required_events": [
+      "FaultInjected",
+      "ToolFailed",
+      "ToolSucceeded"
+    ]
+  }
+}

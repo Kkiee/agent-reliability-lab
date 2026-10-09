@@ -1,0 +1,31 @@
+{
+  "name": "happy_path",
+  "user_input": "计算 2+2",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "calculate",
+        "arguments": {
+          "expression": "2+2"
+        }
+      },
+      "token_usage": 10
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "结果是 4"
+      },
+      "token_usage": 5
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "final_answer_contains": "4",
+    "required_events": [
+      "ToolSucceeded"
+    ]
+  }
+}

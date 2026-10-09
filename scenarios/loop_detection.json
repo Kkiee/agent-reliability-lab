@@ -1,0 +1,56 @@
+{
+  "name": "loop_detection",
+  "user_input": "重复调用搜索工具",
+  "policy": {
+    "repeated_call_limit": 3
+  },
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "same"
+        }
+      },
+      "token_usage": 8
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "same"
+        }
+      },
+      "token_usage": 8
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "3",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "same"
+        }
+      },
+      "token_usage": 8
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "不会到达"
+      },
+      "token_usage": 1
+    }
+  ],
+  "expected": {
+    "status": "terminated",
+    "required_events": [
+      "PolicyEvaluated",
+      "RunTerminated"
+    ]
+  }
+}

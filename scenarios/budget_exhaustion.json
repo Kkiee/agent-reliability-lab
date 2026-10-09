@@ -1,0 +1,45 @@
+{
+  "name": "budget_exhaustion",
+  "user_input": "消耗超过限额的 token",
+  "policy": {
+    "max_tokens": 20
+  },
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "calculate",
+        "arguments": {
+          "expression": "1+1"
+        }
+      },
+      "token_usage": 15
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "calculate",
+        "arguments": {
+          "expression": "2+2"
+        }
+      },
+      "token_usage": 15
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "不会到达"
+      },
+      "token_usage": 1
+    }
+  ],
+  "expected": {
+    "status": "terminated",
+    "required_events": [
+      "PolicyEvaluated",
+      "RunTerminated"
+    ]
+  }
+}

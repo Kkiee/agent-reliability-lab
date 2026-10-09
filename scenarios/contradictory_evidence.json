@@ -1,0 +1,54 @@
+{
+  "name": "contradictory_evidence",
+  "user_input": "比较两个互相冲突的记录",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "fetch_record",
+        "arguments": {
+          "record_id": "1"
+        }
+      },
+      "token_usage": 10
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "fetch_record",
+        "arguments": {
+          "record_id": "2"
+        }
+      },
+      "token_usage": 10
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "两个来源冲突，结果不确定"
+      },
+      "token_usage": 8
+    }
+  ],
+  "faults": [
+    {
+      "type": "contradictory_result",
+      "tool_name": "fetch_record",
+      "call_index": 2,
+      "probability": 1.0,
+      "payload": {
+        "value": "conflict"
+      }
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "final_answer_contains": "不确定",
+    "required_events": [
+      "FaultInjected",
+      "ToolSucceeded"
+    ]
+  }
+}

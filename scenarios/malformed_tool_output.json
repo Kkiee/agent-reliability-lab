@@ -1,0 +1,52 @@
+{
+  "name": "malformed_tool_output",
+  "user_input": "读取记录 1",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "fetch_record",
+        "arguments": {
+          "record_id": "1"
+        }
+      },
+      "token_usage": 10
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "fetch_record",
+        "arguments": {
+          "record_id": "1"
+        }
+      },
+      "token_usage": 10
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "第二次读取成功"
+      },
+      "token_usage": 6
+    }
+  ],
+  "faults": [
+    {
+      "type": "malformed_json",
+      "tool_name": "fetch_record",
+      "call_index": 1,
+      "probability": 1.0
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "recovered": true,
+    "min_tool_calls": 2,
+    "required_events": [
+      "FaultInjected",
+      "ToolSucceeded"
+    ]
+  }
+}

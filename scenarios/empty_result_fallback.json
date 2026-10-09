@@ -1,0 +1,52 @@
+{
+  "name": "empty_result_fallback",
+  "user_input": "查询备用数据源",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "1",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "primary"
+        }
+      },
+      "token_usage": 9
+    },
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "2",
+        "tool_name": "fetch_record",
+        "arguments": {
+          "record_id": "fallback"
+        }
+      },
+      "token_usage": 9
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "使用备用数据源完成"
+      },
+      "token_usage": 6
+    }
+  ],
+  "faults": [
+    {
+      "type": "empty_result",
+      "tool_name": "search_docs",
+      "call_index": 1,
+      "probability": 1.0
+    }
+  ],
+  "expected": {
+    "status": "completed",
+    "recovered": true,
+    "min_tool_calls": 2,
+    "required_events": [
+      "FaultInjected",
+      "ToolSucceeded"
+    ]
+  }
+}

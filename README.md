@@ -44,10 +44,18 @@ Day 4 adds:
 - Deterministic `extra_latency` metadata that does not use wall-clock measurements, so event and state hashes remain reproducible.
 - Replay compatibility for faulted runs: replay reconstructs results from persisted events and never reruns chaos injection.
 
+Day 5 adds:
+
+- Strict Pydantic scenario models and deterministic JSON loading with explicit errors for empty directories, duplicate names, invalid JSON, and unknown fields.
+- Nine offline benchmark scenarios covering happy-path execution, timeout/malformed/empty-result recovery, loop and budget termination, policy denial, prompt injection, and contradictory evidence.
+- An evaluator for task success, recovery, policy violations versus denials, termination, steps, tool calls, token usage, latency, replay fidelity, and required-event trace completeness.
+- A deterministic suite regression summary with pass counts and pass rate over the fixture scenarios.
+
 Current limitations:
 
 - `send_message` does not contact any external service; it only appends to an in-memory `MessageRecorder`.
 - No real side-effect tools are implemented.
 - File storage is local and single-process; it does not provide cross-process locking or distributed coordination.
-- Scenario loading, evaluation, reporting, and CLI support are not implemented yet.
+- Scenario evaluation is a deterministic fixture-based reliability benchmark, not a general model capability score.
+- Reporting and CLI support are not implemented yet.
 - `extra_latency` records a deterministic delay value but does not sleep, so local runs remain fast and hash-stable.
