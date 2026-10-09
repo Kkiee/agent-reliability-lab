@@ -57,7 +57,7 @@ More detail is in [docs/architecture.md](docs/architecture.md).
 
 ## Quick Start
 
-Run these commands from a fresh clone with Python 3.11 or newer.
+Run these commands from a fresh clone with Python 3.11-3.14.
 
 ```bash
 python -m venv .venv
@@ -109,7 +109,7 @@ The run was captured on 2026-10-09 with Python 3.14.3 and the default seed `42`.
 
 ## Replay Example
 
-Run the happy-path scenario into a fresh directory and replay the saved run:
+Run the happy-path scenario into `runs/replay-demo` and replay the saved run. The output below was captured from those exact commands:
 
 ```text
 $ agentlab run happy_path --runs-dir runs/replay-demo
