@@ -1294,7 +1294,7 @@ git commit -m "feat: add reliability benchmark scenarios and metrics"
 - Consumes: `Scenario`、`EvaluationResult`、`BenchmarkSummary`、`FileEventStore`、`ReplayEngine`、`OpenAICompatibleAdapter`。
 - Produces: `write_benchmark_json_report()`、`write_benchmark_html_report()`、`write_run_html_report()`、`agentlab` CLI、`OpenAICompatibleAdapter.complete()`。
 
-- [ ] **Step 1: 写报告和 CLI 失败测试**
+- [x] **Step 1: 写报告和 CLI 失败测试**
 
 创建 `tests/unit/test_reporting.py`：
 
@@ -1331,7 +1331,7 @@ def test_bench_returns_nonzero_when_threshold_fails(tmp_path) -> None:
     assert result.exit_code == 1
 ```
 
-- [ ] **Step 2: 运行测试并确认失败**
+- [x] **Step 2: 运行测试并确认失败**
 
 Run:
 
@@ -1341,7 +1341,7 @@ python -m pytest tests/unit/test_reporting.py tests/integration/test_cli.py -v
 
 Expected: FAIL，错误包含 `No module named 'agentlab.reporting'` 或 `agentlab.cli`。
 
-- [ ] **Step 3: 实现 JSON 和 HTML Reporter**
+- [x] **Step 3: 实现 JSON 和 HTML Reporter**
 
 `reporting.py` 提供：
 
@@ -1363,7 +1363,7 @@ HTML 报告必须包含：
 
 模板不得引用 CDN、外部字体或远程脚本。所有 CSS 内嵌且页面离线可用。
 
-- [ ] **Step 4: 实现 CLI**
+- [x] **Step 4: 实现 CLI**
 
 先在 `pyproject.toml` 添加入口点：
 
@@ -1391,7 +1391,7 @@ agentlab demo
 - `demo` 只运行 `happy_path` 和 `tool_timeout_recovery`，随后生成 HTML 报告。
 - 未捕获异常不得直接显示 Python traceback；CLI 输出简短错误和非零退出码。
 
-- [ ] **Step 5: 实现 OpenAI-compatible Adapter**
+- [x] **Step 5: 实现 OpenAI-compatible Adapter**
 
 `openai_compatible.py` 使用 `httpx.Client`，默认从环境变量读取：
 
@@ -1410,7 +1410,7 @@ AGENTLAB_MODEL=qwen2.5:7b
 - 缺少 choices
 - 返回内容无法解析为 `ModelResponse`
 
-- [ ] **Step 6: 运行测试并修正**
+- [x] **Step 6: 运行测试并修正**
 
 Run:
 
@@ -1422,7 +1422,7 @@ python -m mypy src
 
 Expected: 全部 PASS。
 
-- [ ] **Step 7: 提交 Day 6**
+- [x] **Step 7: 提交 Day 6**
 
 ```bash
 git add src tests
