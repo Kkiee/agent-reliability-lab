@@ -1,0 +1,33 @@
+{
+  "name": "custom_release_lookup",
+  "description": "Search the local corpus and answer a question about offline runs.",
+  "user_input": "What do the release notes say about offline runs?",
+  "model_script": [
+    {
+      "action": {
+        "kind": "tool",
+        "call_id": "lookup-1",
+        "tool_name": "search_docs",
+        "arguments": {
+          "query": "offline"
+        }
+      },
+      "token_usage": 8
+    },
+    {
+      "action": {
+        "kind": "final",
+        "content": "The release notes say local runs are deterministic and offline."
+      },
+      "token_usage": 6
+    }
+  ],
+  "policy": {
+    "allowed_tools": ["search_docs"]
+  },
+  "expected": {
+    "status": "completed",
+    "final_answer_contains": "offline",
+    "required_events": ["ToolSucceeded"]
+  }
+}
